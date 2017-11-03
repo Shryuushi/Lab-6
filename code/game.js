@@ -185,7 +185,7 @@ Level.prototype.animate = function(step, keys) {
 
 var maxStep = 0.05;
 
-var playerXSpeed = 7;
+var playerXSpeed = 5;
 
 Player.prototype.moveX = function(step, level, keys) {
   this.speed.x = 0;
