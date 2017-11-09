@@ -8,6 +8,8 @@
 
 .actor  { position: absolute;  }
 .player { background: rgb(64, 64, 64); }
+.coin { background-image: url(http://cdn.designbeep.com/wp-content/uploads/2012/10/9.gold-textures.jpg); }
+.star { background-image: url(https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRe-KvwG2bE7hgN7cH8NpLZr2gPLQ1FfHL7JsCDtxdwsBwAejg28Q); }
 
 .game {
   overflow: hidden;
