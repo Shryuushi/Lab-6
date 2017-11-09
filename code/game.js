@@ -1,3 +1,8 @@
+var actorChars = {
+	'@': Player,
+	'o': Coin,
+	'u': Star,
+};
 function Level(plan) {
   // Use the length of a single row to set the width of the level
   this.width = plan[0].length;
@@ -7,6 +12,7 @@ function Level(plan) {
 
   // Store the individual tiles in our own, separate array
   this.grid = [];
+  this.actors =[];
 
   // Loop through each row in the plan, creating an array in our grid
   for (var y = 0; y < this.height; y++) {
@@ -19,9 +25,9 @@ function Level(plan) {
 
       var ch = line[x], fieldType = null;
       // Use if and else to handle the three cases
-      if (ch==='@')
-        // Create a new player at that grid position.
-        this.player = new Player(new Vector(x, y));
+      var Actor = actorChars[ch];
+	  if (Actor)
+		this.actors.push(new Actor(new Vector(x, y), ch));
       else if (ch == "x")
         fieldType = "wall";
       // Because there is a third case (space ' '), use an "else if" instead of "else"
@@ -36,6 +42,9 @@ function Level(plan) {
     // Push the entire row onto the array of rows.
     this.grid.push(gridLine);
   }
+  this.player = this.actors.filter(function(actor) {
+	  return actor.type == "player";
+  })[0];
 }
 
 function Vector(x, y) {
@@ -60,6 +69,20 @@ function Player(pos) {
   this.speed = new Vector(0, 0);
 }
 Player.prototype.type = "player";
+
+function Coin(pos) {
+	this.basePos = this.pos = pos.plus(new Vector(0.2, 0.1));
+	this.size = new Vector(0.6, 0.6);
+	this.wobble = Math.random() * Math.PI * 2;
+}
+Coin.prototype.type = "coin";
+
+function Star(pos) {
+	this.basePos = this.pos = pos.plus(new Vector(0.2, 0.1));
+	this.size = new Vector(0.6, 0.6);
+	this.bounce = Math.random() * Math.PI * 5;
+}
+Star.prototype.type = "star";
 
 // Helper function to easily create an element of a type provided 
 // and assign it a class.
@@ -105,24 +128,25 @@ DOMDisplay.prototype.drawBackground = function() {
 };
 
 // Draw the player agent
-DOMDisplay.prototype.drawPlayer = function() {
+DOMDisplay.prototype.drawActors = function() {
   // Create a new container div for actor dom elements
   var wrap = elt("div");
 
-  var actor = this.level.player;
+  this.level.actors.forEach(function(actor) {
   var rect = wrap.appendChild(elt("div",
                                     "actor " + actor.type));
   rect.style.width = actor.size.x * scale + "px";
   rect.style.height = actor.size.y * scale + "px";
   rect.style.left = actor.pos.x * scale + "px";
   rect.style.top = actor.pos.y * scale + "px";
+  });
   return wrap;
 };
 
 DOMDisplay.prototype.drawFrame = function() {
   if (this.actorLayer)
     this.wrap.removeChild(this.actorLayer);
-  this.actorLayer = this.wrap.appendChild(this.drawPlayer());
+  this.actorLayer = this.wrap.appendChild(this.drawActors());
   this.scrollPlayerIntoView();
 };
 
@@ -170,17 +194,64 @@ Level.prototype.obstacleAt = function(pos, size) {
 		}	
 	}
 };
+
+Level.prototype.actorAt = function(actor) {
+	for (var i=0; i < this.actors.length; i++) {
+		var other = this.actors[i];
+		if (other != actor && 
+			actor.pos.x + actor.size.x > other.pos.x &&
+			actor.pos.x < other.pos.x + other.size.x &&
+			actor.pos.y + actor.size.y > other.pos.y &&
+			actor.pos.y < other.pos.y + other.size.y)
+			return other;
+	}
+};
+
 // Update simulation each step based on keys & step size
 Level.prototype.animate = function(step, keys) {
 
   // Ensure each is maximum 100 milliseconds 
   while (step > 0) {
     var thisStep = Math.min(step, maxStep);
-      this.player.act(thisStep, this, keys);
+		this.actors.forEach(function(actor) {
+			actor.act(thisStep, this, keys);
+		}, this);
    // Do this by looping across the step size, subtracing either the
    // step itself or 100 milliseconds
     step -= thisStep;
   }
+};
+
+var wobbleSpeed = 8;
+var wobbleDist = 0.07;
+Coin.prototype.act = function(step) {
+	this.wobble += step * wobbleSpeed;
+	var wobblePos = Math.sin(this.wobble) * wobbleDist;
+	this.pos = this.basePos.plus(new Vector(0, wobblePos));
+};
+
+function sound(src) {
+	this.sound = document.createElement("audio");
+	this.sound.src = src;
+	this.sound.setAttribute("preload", "auto");
+	this.sound.setAttribute("controls", "none");
+	this.sound.style.display = "none";
+	document.body.appendChild(this.sound);
+	this.play = function() {
+		this.sound.play();
+	}
+	this.stop = function() {
+		this.sound.pause();
+	}
+}
+
+var mySound;
+var bounceSpeed = 15;
+var bounceDist = 0.10;
+Star.prototype.act = function(step) {
+	this.bounce += step * bounceSpeed;
+	var bouncePos = Math.sin(this.bounce) * bounceDist;
+	this.pos = this.basePos.plus(new Vector(0, bouncePos));
 };
 
 var maxStep = 0.05;
@@ -224,9 +295,24 @@ Player.prototype.moveY = function(step, level, keys) {
 Player.prototype.act = function(step, level, keys) {
   this.moveX(step, level, keys);
   this.moveY(step, level, keys);
+  
+  var otherActor = level.actorAt(this);
+  if (otherActor)
+	  level.playerTouched(otherActor.type, otherActor);
 };
 
-// Arrow key codes for readibility
+Level.prototype.playerTouched = function(type, actor) {
+	if (type == 'coin' || type == 'star') {
+		if (type == 'star') {
+			mySound.play();
+		}
+		this.actors = this.actors.filter(function(other) {
+			return other != actor;
+		});
+	}
+};
+
+// Arrow key codes for readability
 var arrowCodes = {37: "left", 38: "up", 39: "right", 40: "down"};
 
 // Translate the codes pressed from a key event
@@ -288,6 +374,7 @@ function runLevel(level, Display) {
 }
 
 function runGame(plans, Display) {
+	mySound = new sound("http://themushroomkingdom.net/sounds/wav/smb2/smb2_1up.wav");
   function startLevel(n) {
     // Create a new level using the nth element of array plans
     // Pass in a reference to Display function, DOMDisplay (in index.html).
